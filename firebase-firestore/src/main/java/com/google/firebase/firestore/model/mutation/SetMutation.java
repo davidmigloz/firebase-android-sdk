@@ -16,13 +16,10 @@ package com.google.firebase.firestore.model.mutation;
 
 import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.model.DocumentKey;
-import com.google.firebase.firestore.model.FieldPath;
 import com.google.firebase.firestore.model.MutableDocument;
 import com.google.firebase.firestore.model.ObjectValue;
-import com.google.firestore.v1.Value;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A mutation that creates or replaces the document at the given key with the object value contents.
@@ -77,9 +74,7 @@ public final class SetMutation extends Mutation {
     // Unlike applyToLocalView, if we're applying a mutation to a remote document the server has
     // accepted the mutation so the precondition must have held.
     ObjectValue newData = value.clone();
-    Map<FieldPath, Value> transformResults =
-        serverTransformResults(document, mutationResult.getTransformResults());
-    newData.setAll(transformResults);
+    applyServerTransformResults(newData, document, mutationResult.getTransformResults());
     document
         .convertToFoundDocument(mutationResult.getVersion(), newData)
         .setHasCommittedMutations();
@@ -93,9 +88,8 @@ public final class SetMutation extends Mutation {
       return;
     }
 
-    Map<FieldPath, Value> transformResults = localTransformResults(localWriteTime, document);
     ObjectValue localValue = value.clone();
-    localValue.setAll(transformResults);
+    applyLocalTransformResults(localValue, document, localWriteTime);
     document
         .convertToFoundDocument(getPostMutationVersion(document), localValue)
         .setHasLocalMutations();

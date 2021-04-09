@@ -19,15 +19,12 @@ import static com.google.firebase.firestore.util.Assert.hardAssert;
 import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.model.Document;
 import com.google.firebase.firestore.model.DocumentKey;
-import com.google.firebase.firestore.model.FieldPath;
 import com.google.firebase.firestore.model.MutableDocument;
 import com.google.firebase.firestore.model.ObjectValue;
 import com.google.firebase.firestore.model.SnapshotVersion;
 import com.google.firestore.v1.Value;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Represents a Mutation of a document. Different subclasses of Mutation will perform different
@@ -150,17 +147,14 @@ public abstract class Mutation {
   }
 
   /**
-   * Creates a list of "transform results" (a transform result is a field value representing the
-   * result of applying a transform) for use after a mutation containing transforms has been
-   * acknowledged by the server.
+   * Applies the result of applying a transform by the backend.
    *
-   * @param mutableDocument The current state of the document after applying all previous mutations.
+   * @param newValue The object value to mutate.
+   * @param existingData The current state of the document after applying all previous mutations.
    * @param serverTransformResults The transform results received by the server.
-   * @return A map of fields to transform results.
    */
-  protected Map<FieldPath, Value> serverTransformResults(
-      MutableDocument mutableDocument, List<Value> serverTransformResults) {
-    Map<FieldPath, Value> transformResults = new HashMap<>(fieldTransforms.size());
+  protected void applyServerTransformResults(
+      ObjectValue newValue, Document existingData, List<Value> serverTransformResults) {
     hardAssert(
         fieldTransforms.size() == serverTransformResults.size(),
         "server transform count (%d) should match field transform count (%d)",
@@ -170,42 +164,28 @@ public abstract class Mutation {
     for (int i = 0; i < serverTransformResults.size(); i++) {
       FieldTransform fieldTransform = fieldTransforms.get(i);
       TransformOperation transform = fieldTransform.getOperation();
-
-      Value previousValue = null;
-      if (mutableDocument.isFoundDocument()) {
-        previousValue = mutableDocument.getField(fieldTransform.getFieldPath());
-      }
-
-      transformResults.put(
-          fieldTransform.getFieldPath(),
-          transform.applyToRemoteDocument(previousValue, serverTransformResults.get(i)));
+      Value previousValue = existingData.getField(fieldTransform.getFieldPath());
+      Value transformedValue =
+          transform.applyToRemoteDocument(previousValue, serverTransformResults.get(i));
+      newValue.set(fieldTransform.getFieldPath(), transformedValue);
     }
-    return transformResults;
   }
 
   /**
-   * Creates a list of "transform results" (a transform result is a field value representing the
-   * result of applying a transform) for use when applying a transform locally.
+   * Applies the result a transform locally.
    *
+   * @param newValue The object value to mutate.
+   * @param existingData The current state of the document after applying all previous mutations.
    * @param localWriteTime The local time of the mutation (used to generate ServerTimestampValues).
-   * @param mutableDocument The current state of the document after applying all previous mutations.
-   * @return A map of fields to transform results.
    */
-  protected Map<FieldPath, Value> localTransformResults(
-      Timestamp localWriteTime, MutableDocument mutableDocument) {
-    Map<FieldPath, Value> transformResults = new HashMap<>(fieldTransforms.size());
+  protected void applyLocalTransformResults(
+      ObjectValue newValue, Document existingData, Timestamp localWriteTime) {
     for (FieldTransform fieldTransform : fieldTransforms) {
       TransformOperation transform = fieldTransform.getOperation();
-
-      Value previousValue = null;
-      if (mutableDocument.isFoundDocument()) {
-        previousValue = mutableDocument.getField(fieldTransform.getFieldPath());
-      }
-
-      transformResults.put(
-          fieldTransform.getFieldPath(), transform.applyToLocalView(previousValue, localWriteTime));
+      Value previousValue = existingData.getField(fieldTransform.getFieldPath());
+      Value transformedValue = transform.applyToLocalView(previousValue, localWriteTime);
+      newValue.set(fieldTransform.getFieldPath(), transformedValue);
     }
-    return transformResults;
   }
 
   public ObjectValue extractTransformBaseValue(Document document) {
