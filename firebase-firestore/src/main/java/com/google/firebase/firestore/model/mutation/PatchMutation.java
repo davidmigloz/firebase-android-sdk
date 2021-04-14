@@ -119,7 +119,7 @@ public final class PatchMutation extends Mutation {
     applyServerTransformResults(value, document, mutationResult.getTransformResults());
     value.setAll(getPatch());
     document
-        .convertToFoundDocument(mutationResult.getVersion(), document.getData())
+        .convertToFoundDocument(mutationResult.getVersion(), value)
         .setHasCommittedMutations();
   }
 
@@ -135,7 +135,7 @@ public final class PatchMutation extends Mutation {
     applyLocalTransformResults(value, document, localWriteTime);
     value.setAll(getPatch());
     document
-        .convertToFoundDocument(getPostMutationVersion(document), document.getData())
+        .convertToFoundDocument(getPostMutationVersion(document), value)
         .setHasLocalMutations();
   }
 
